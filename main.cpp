@@ -21,8 +21,48 @@ MPU6050 imu;
 //IDEA: include in constructor methods to set up the chip for reading
 class IMUControl{
 public:
+	bool dmpReady;
+	uint16_t packetSize;
+	uint16_t fifoCount;
+	uint8_t intStat;
+	uint8_t fifoBuffer[64];
+
+	Quaternion q;
+	VectorInt16 aa;
+	VectorInt16 aaReal;
+	VectorFloat gravity;
+
+	float euler[3];
+	float ypr[3];
+
+
+	volatile bool data;
 
 	void getMeasure(){
+		this->data = false;
+		this->intStat = imu.getIntStatus();
+		this->fifoCount = imu.getFIFOCount();
+		if((this->intStat & 0x10) || this->fifoCount == 1024){
+			imu.resetFIFO();
+			//overflow
+		} else if(con.intStat & 0x02){
+			while(this->fifoCount < this->packetSize) this->fifoCount = imu.getFIFOCount();
+
+			imu.getFIFOBytes(this->fifoBuffer, this->packetSize);
+
+			this->fifoCount -= this->packetSize;
+
+			//---yaw pitch roll ---
+			imu.dmpGetQuaternion(&q, fifoBuffer);
+			imu.dmpGetGravity(&gravity, &q);
+			imu.dmpGetYawPitchRoll(ypr, &q, &gravity);
+
+			//---accel compensated for gravity --
+            imu.dmpGetQuaternion(&q, fifoBuffer);
+            imu.dmpGetAccel(&aa, fifoBuffer);
+            imu.dmpGetGravity(&gravity, &q);
+            imu.dmpGetLinearAccel(&aaReal, &aa, &gravity);
+		}
 
 	}
 
@@ -206,15 +246,48 @@ private:
 
 }m;
 
+
+void dataReady(){
+	con.data = true;
+}
+
 void setup(){
 	//set interrupt data pin
-	//maybe callibrate?
+	//maybe calibrate?
+
+	attachInterrupt(0, dataReady, RISING);
+
+	Wire.begin();
+	imu.initialize();
+
+	uint8_t devStat = imu.dmpInitialize();
+
+	imu.setXAccelOffset(1501);
+	imu.setYAccelOffset(1251);
+	imu.setZAccelOffset(1262);
+	imu.setXGyroOffset(-4);
+	imu.setYGyroOffset(4);
+	imu.setZGyroOffset(4);
+
+	if(devStat == 0){
+		imu.setDMPEnabled(true);
+		con.dmpReady = true;
+
+		con.packetSize = imu.dmpGetFIFOPacketSize();
+	} else {
+		//something has failed
+		//flash some lights or something
+	}
 
 }
 
 void loop(){
-	//get sensor values
-	//adjust motor control
+
+	if(!con.dmpReady) return;
+
+	while(!con.data && con.fifoCount < con.packetSize);
+	//motor control ~> this will call for sensor reading?
+	//or does sensor reading need to happen here?
 
 	lastLoopTUSE = millis() - loopStartT;
 	if(lastLoopTUSE < LOOP_TIME) delay(LOOP_TIME - lastLoopTUSE);
