@@ -9,8 +9,7 @@
 #define leftDir 13
 #define rightM 3
 #define rightDir 12
-//Hellow Work
-//Hall bar jew todee
+#define button 8
 
 const int LOOP_TIME = 9;
 int lastLoopT = LOOP_TIME;
@@ -41,18 +40,18 @@ public:
 	volatile bool data;
 
 	void getMeasure(){
-		this->data = false;
-		this->intStat = imu.getIntStatus();
-		this->fifoCount = imu.getFIFOCount();
-		if((this->intStat & 0x10) || this->fifoCount == 1024){
+		data = false;
+		intStat = imu.getIntStatus();
+		fifoCount = imu.getFIFOCount();
+		if((intStat & 0x10) || fifoCount == 1024){
 			imu.resetFIFO();
 			//overflow
-		} else if(this->intStat & 0x02){
-			while(this->fifoCount < this->packetSize) this->fifoCount = imu.getFIFOCount();
+		} else if(intStat & 0x02){
+			while(fifoCount < packetSize) fifoCount = imu.getFIFOCount();
 
-			imu.getFIFOBytes(this->fifoBuffer, this->packetSize);
+			imu.getFIFOBytes(fifoBuffer, packetSize);
 
-			this->fifoCount -= this->packetSize;
+			fifoCount -= packetSize;
 
 			//---yaw pitch roll ---
 			imu.dmpGetQuaternion(&q, fifoBuffer);
@@ -60,11 +59,37 @@ public:
 			imu.dmpGetYawPitchRoll(ypr, &q, &gravity);
 
 			//---accel compensated for gravity --
-            imu.dmpGetQuaternion(&q, fifoBuffer);
-            imu.dmpGetAccel(&aa, fifoBuffer);
-            imu.dmpGetGravity(&gravity, &q);
-            imu.dmpGetLinearAccel(&aaReal, &aa, &gravity);
+			imu.dmpGetQuaternion(&q, fifoBuffer);
+			imu.dmpGetAccel(&aa, fifoBuffer);
+			imu.dmpGetGravity(&gravity, &q);
+			imu.dmpGetLinearAccel(&aaReal, &aa, &gravity);
 
+		}
+
+	}
+
+	void calibrate(){
+		int offset[6] = {0};
+		this->mean(500);
+
+		offset[0] = -_mean[0]/8;
+		offset[1] = -_mean[1]/8;
+		offset[2] = (16384-_mean[2])/4;
+
+		offset[3] = -_mean[3]/4;
+		offset[4] = -_mean[4]/4;
+		offset[5] = -_mean[5]/4;
+
+		imu.setXAccelOffset(offset[0]);
+		imu.setYAccelOffset(offset[1]);
+		imu.setZAccelOffset(offset[2]);
+		imu.setXGyroOffset(offset[3]);
+		imu.setYGyroOffset(offset[4]);
+		imu.setZGyroOffset(offset[5]);
+
+		Serial.println("Calibration finished::Offsets are:");
+		for(int i = 0; i < 6; i ++){
+			Serial.println(offset[i]);
 		}
 
 	}
@@ -78,6 +103,7 @@ public:
 
 private:
 	int16_t _ax = 0, _ay = 0, _az = 0, _gx = 0, _gy = 0, _gz = 0;
+	float _mean[6];
 
 	float Q_angle  =  0.001; //0.001
 	float Q_gyro   =  0.003;  //0.003
@@ -112,6 +138,30 @@ private:
 		return x_angle;
 	}
 
+	void mean(int sampleSize){
+		int toss = 0.1 * sampleSize;
+		long buff[6] = {0};
+		int i = 0;
+		while(i < (sampleSize + (toss + 1))){
+			imu.getMotion6(&_ax, &_ay, &_az, &_gx, &_gy, &_gz);
+			if (i < toss && i<=sampleSize+toss) {
+				buff[0] = _ax;
+				buff[1] = _ay;
+				buff[2] = _az;
+				buff[3] = _gx;
+				buff[4] = _gy;
+				buff[5] = _az;
+			}
+
+			if(i==(sampleSize+toss)){
+				for(int x = 0; x < 6; x ++){
+					_mean[x]= buff[x]/sampleSize;
+				}
+			}
+			i++;
+		}
+	}
+
 }con;
 
 class MotorControl{
@@ -120,6 +170,8 @@ public:
 	void checkMotor(){
 		this->motor('L', pid(0, con.filter()));
 		this->motor('R', pid(0, con.filter()));
+
+		Serial.print("Motor Value: "); Serial.println(pid(0, con.filter()));
 
 	}
 
@@ -257,27 +309,46 @@ void dataReady(){
 }
 
 void setup(){
-	//set interrupt data pin
-	//maybe calibrate?
-
+	Serial.begin(9600);
+	bool ready = false;
+	bool defaul = true;
+	int counter = 0;
 	attachInterrupt(0, dataReady, RISING);
+	pinMode(button, INPUT_PULLUP);
 
 	Wire.begin();
 	imu.initialize();
 
 	uint8_t devStat = imu.dmpInitialize();
 
-	imu.setXAccelOffset(1501);
-	imu.setYAccelOffset(1251);
-	imu.setZAccelOffset(1262);
-	imu.setXGyroOffset(-4);
-	imu.setYGyroOffset(4);
-	imu.setZGyroOffset(4);
+	while(!ready){
+		Serial.println("Waiting");
+		if(digitalRead(button) == 0){
+			Serial.println("Calibrating...");
+			con.calibrate();
+			ready = true;
+			defaul = false;
+		} else if(counter >= 1000){
+			ready = true;
+		}
+		delay(20);
+		counter++;
+	}
+
+	if(defaul){
+		imu.setXAccelOffset(1501);
+		imu.setYAccelOffset(1251);
+		imu.setZAccelOffset(1262);
+		imu.setXGyroOffset(-4);
+		imu.setYGyroOffset(4);
+		imu.setZGyroOffset(4);
+	}
 
 	if(devStat == 0){
 		imu.setDMPEnabled(true);
 		con.dmpReady = true;
 
+		Serial.println("Getting packet size");
 		con.packetSize = imu.dmpGetFIFOPacketSize();
 	} else {
 		//something has failed
@@ -287,11 +358,11 @@ void setup(){
 }
 
 void loop(){
-
 	if(!con.dmpReady) return;
 
 	while(!con.data && con.fifoCount < con.packetSize);
 	m.checkMotor();
+	con.data = false;
 
 	lastLoopTUSE = millis() - loopStartT;
 	if(lastLoopTUSE < LOOP_TIME) delay(LOOP_TIME - lastLoopTUSE);
