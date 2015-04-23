@@ -45,7 +45,7 @@ public:
 		if((this->intStat & 0x10) || this->fifoCount == 1024){
 			imu.resetFIFO();
 			//overflow
-		} else if(con.intStat & 0x02){
+		} else if(this->intStat & 0x02){
 			while(this->fifoCount < this->packetSize) this->fifoCount = imu.getFIFOCount();
 
 			imu.getFIFOBytes(this->fifoBuffer, this->packetSize);
@@ -70,7 +70,7 @@ public:
 	int filter(){
 		this->getMeasure();
 		_gx = ypr[3];
-		_ay = aaReal[1];
+		_ay = aaReal.y;
 		return kalmanCalculate(_gx, _ay, LOOP_TIME);
 	}
 
@@ -115,7 +115,7 @@ private:
 class MotorControl{
 public:
 
-	void motorForward(int speedA, int speedB){
+	void checkMotor(){
 		this->motor('L', pid(0, con.filter()));
 		this->motor('R', pid(0, con.filter()));
 
@@ -289,8 +289,7 @@ void loop(){
 	if(!con.dmpReady) return;
 
 	while(!con.data && con.fifoCount < con.packetSize);
-	//motor control ~> this will call for sensor reading?
-	//or does sensor reading need to happen here?
+	m.checkMotor();
 
 	lastLoopTUSE = millis() - loopStartT;
 	if(lastLoopTUSE < LOOP_TIME) delay(LOOP_TIME - lastLoopTUSE);
