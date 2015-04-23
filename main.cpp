@@ -96,7 +96,7 @@ public:
 
 	int filter(){
 		this->getMeasure();
-		_gx = ypr[3];
+		_gx = ypr[1];
 		_ay = aaReal.y;
 		return kalmanCalculate(_gx, _ay, LOOP_TIME);
 	}
