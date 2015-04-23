@@ -9,6 +9,8 @@
 #define leftDir 13
 #define rightM 3
 #define rightDir 12
+//Hellow Work
+//Hall bar jew todee
 
 const int LOOP_TIME = 9;
 int lastLoopT = LOOP_TIME;
