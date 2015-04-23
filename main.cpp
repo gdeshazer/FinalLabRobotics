@@ -2,8 +2,8 @@
 #include <math.h>
 
 #include "Wire.h"
-#include "MPU6050_6Axis_MotionApps20.h"
 #include "I2Cdev.h"
+#include "MPU6050_6Axis_MotionApps20.h"
 
 #define leftM 11
 #define leftDir 13
@@ -18,7 +18,7 @@ unsigned long loopStartT = 0;
 MPU6050 imu;
 
 
-//IDEA: include in constructor methods to set up the chip for reading
+//IDEA: include in cnstructor methods to set up the chip for reading
 class IMUControl{
 public:
 	bool dmpReady;
@@ -62,17 +62,20 @@ public:
             imu.dmpGetAccel(&aa, fifoBuffer);
             imu.dmpGetGravity(&gravity, &q);
             imu.dmpGetLinearAccel(&aaReal, &aa, &gravity);
+
 		}
 
 	}
 
 	int filter(){
 		this->getMeasure();
-		return kalmanCalculate(gx, ax, LOOP_TIME);
+		_gx = ypr[3];
+		_ay = aaReal[1];
+		return kalmanCalculate(_gx, _ay, LOOP_TIME);
 	}
 
 private:
-	int16_t ax = 0, ay = 0, az = 0, gx = 0, gy = 0, gz = 0;
+	int16_t _ax = 0, _ay = 0, _az = 0, _gx = 0, _gy = 0, _gz = 0;
 
 	float Q_angle  =  0.001; //0.001
 	float Q_gyro   =  0.003;  //0.003
