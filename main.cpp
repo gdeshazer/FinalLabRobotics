@@ -11,7 +11,7 @@
 #define rightDir 12
 #define button 8
 
-const int LOOP_TIME = 9;
+const int LOOP_TIME = 5;
 int lastLoopT = LOOP_TIME;
 int lastLoopTUSE = LOOP_TIME;
 unsigned long loopStartT = 0;
@@ -87,10 +87,6 @@ public:
 		imu.setYGyroOffset(offset[4]);
 		imu.setZGyroOffset(offset[5]);
 
-		Serial.println("Calibration finished::Offsets are:");
-		for(int i = 0; i < 6; i ++){
-			Serial.println(offset[i]);
-		}
 
 	}
 
@@ -171,7 +167,7 @@ public:
 		this->motor('L', pid(0, con.filter()));
 		this->motor('R', pid(0, con.filter()));
 
-		Serial.print("Motor Value: "); Serial.println(pid(0, con.filter()));
+		//Serial.print("Motor Value: "); Serial.println(pid(0, con.filter()));
 
 	}
 
@@ -247,10 +243,10 @@ public:
 	}
 
 private:
-	const int _kp = 1;
-	const int _ki = 1;
-	const int _kd = 1;
-	const int _k = 1;
+	const float _kp = 5;
+	const float _ki = 0;
+	const float _kd = 2.5;
+	const float _k = 1;
 
 	int _error = 0;
 	int _lastE = 0;
@@ -309,7 +305,6 @@ void dataReady(){
 }
 
 void setup(){
-	Serial.begin(9600);
 	bool ready = false;
 	bool defaul = true;
 	int counter = 0;
@@ -321,19 +316,17 @@ void setup(){
 
 	uint8_t devStat = imu.dmpInitialize();
 
-	while(!ready){
-		Serial.println("Waiting");
-		if(digitalRead(button) == 0){
-			Serial.println("Calibrating...");
-			con.calibrate();
-			ready = true;
-			defaul = false;
-		} else if(counter >= 1000){
-			ready = true;
-		}
-		delay(20);
-		counter++;
-	}
+//	while(!ready){
+//		if(digitalRead(button) == 0){
+//			con.calibrate();
+//			ready = true;
+//			defaul = false;
+//		} else if(counter >= 5000){
+//			ready = true;
+//		}
+//		delay(1);
+//		counter++;
+//	}
 
 	if(defaul){
 		imu.setXAccelOffset(1501);
@@ -348,7 +341,6 @@ void setup(){
 		imu.setDMPEnabled(true);
 		con.dmpReady = true;
 
-		Serial.println("Getting packet size");
 		con.packetSize = imu.dmpGetFIFOPacketSize();
 	} else {
 		//something has failed
@@ -365,7 +357,7 @@ void loop(){
 	con.data = false;
 
 	lastLoopTUSE = millis() - loopStartT;
-	if(lastLoopTUSE < LOOP_TIME) delay(LOOP_TIME - lastLoopTUSE);
+	//if(lastLoopTUSE < LOOP_TIME) delay(LOOP_TIME - lastLoopTUSE);
 	lastLoopT = millis() - loopStartT;
 	loopStartT = millis();
 }
