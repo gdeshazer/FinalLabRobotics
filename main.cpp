@@ -181,25 +181,26 @@ private:
 
 }con;
 
+
 class MotorControl{
 public:
 
-	void checkMotor(){
-		this->motor('L', pid(0, con.filter()));
-		this->motor('R', pid(0, con.filter()));
-
-		//Serial.print("Motor Value: "); Serial.println(pid(0, con.filter()));
+	void checkMotor(int pwm){
+		this->motor('L', pwm);
+		this->motor('R', pwm);
 
 	}
 
-	void reverse(int t){
-		this->motor('L',-130);
-		this->motor('R',-130);
+	int pid(int setPoint, int current){
+		const int guard = 15;
+		_error = setPoint - current;
+		int p =_kp * _error;
+		int intError = intError + _error;
+		int i = _ki * constrain(intError, -guard, guard);
+		int d = _kd * (_error - _lastE);
+		_lastE = _error;
 
-		delay(t);
-
-		this->stop('B','B');
-
+		return -constrain(_k*(p + i + d), -255, 255);
 	}
 
 
@@ -306,18 +307,6 @@ private:
 		}  // end motor B
 	}
 
-	int pid(int setPoint, int current){
-		const int guard = 15;
-		_error = setPoint - current;
-		int p =_kp * _error;
-		int intError = intError + _error;
-		int i = _ki * constrain(intError, -guard, guard);
-		int d = _kd * (_error - _lastE);
-		_lastE = _error;
-
-		return -constrain(_k*(p + i + d), -255, 255);
-	}
-
 }m;
 
 
@@ -371,10 +360,15 @@ void setup(){
 }
 
 void loop(){
+	int pwm = 0;
 	if(!con.dmpReady) return;
 
 	while(!con.data && con.fifoCount < con.packetSize);
-	m.checkMotor();
+
+	pwm = m.pid(0, con.filter());
+
+	m.checkMotor(pwm);
+
 	con.data = false;
 
 	lastLoopTUSE = millis() - loopStartT;
