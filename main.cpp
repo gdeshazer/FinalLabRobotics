@@ -19,7 +19,6 @@ unsigned long loopStartT = 0;
 MPU6050 imu;
 
 
-//IDEA: include in cnstructor methods to set up the chip for reading
 class IMUControl{
 public:
 	bool dmpReady;
@@ -36,10 +35,12 @@ public:
 	float euler[3];
 	float ypr[3];
 
+	int acc_angle;
 
 	volatile bool data;
 
 	void getMeasure(){
+		imu.getMotion6(&_ax, &_ay, &_az, &_gx, &_gy, &_gz);
 		data = false;
 		intStat = imu.getIntStatus();
 		fifoCount = imu.getFIFOCount();
@@ -53,10 +54,10 @@ public:
 
 			fifoCount -= packetSize;
 
-			//---yaw pitch roll ---
-			imu.dmpGetQuaternion(&q, fifoBuffer);
-			imu.dmpGetGravity(&gravity, &q);
-			imu.dmpGetYawPitchRoll(ypr, &q, &gravity);
+//			//---yaw pitch roll ---
+//			imu.dmpGetQuaternion(&q, fifoBuffer);
+//			imu.dmpGetGravity(&gravity, &q);
+//			imu.dmpGetYawPitchRoll(ypr, &q, &gravity);
 
 			//---accel compensated for gravity --
 			imu.dmpGetQuaternion(&q, fifoBuffer);
@@ -65,6 +66,10 @@ public:
 			imu.dmpGetLinearAccel(&aaReal, &aa, &gravity);
 
 		}
+
+		_gx = _gx * 250.0/32768.0;
+		acc_angle = this->arctan2(-_ay, _az) -20; //-20 for _ay and _az
+
 
 	}
 
@@ -92,9 +97,7 @@ public:
 
 	int filter(){
 		this->getMeasure();
-		_gx = ypr[1];
-		_ay = aaReal.y;
-		return kalmanCalculate(_gx, _ay, LOOP_TIME);
+		return kalmanCalculate(acc_angle, _gx, LOOP_TIME);
 	}
 
 private:
@@ -157,6 +160,24 @@ private:
 			i++;
 		}
 	}
+
+	int arctan2(int y, int x) {                                    // http://www.dspguru.com/comp.dsp/tricks/alg/fxdatan2.htm
+	  int coeff_1 = 128;                                          // angle in Quids (1024 Quids=360¡) <<<<<<<<<<<<<<
+	  int coeff_2 = 3*coeff_1;
+	  float abs_y = abs(y)+1e-10;
+	  float r, angle;
+
+	  if (x >= 0) {
+	    r = (x - abs_y) / (x + abs_y);
+	    angle = coeff_1 - coeff_1 * r;
+	  }  else {
+	    r = (x + abs_y) / (abs_y - x);
+	    angle = coeff_2 - coeff_1 * r;
+	  }
+	  if (y < 0)      return int(-angle);
+	  else            return int(angle);
+	}
+
 
 }con;
 
@@ -243,10 +264,10 @@ public:
 	}
 
 private:
-	const float _kp = 5;
-	const float _ki = 0;
-	const float _kd = 2.5;
-	const float _k = 1;
+	const float _kp = 2.5;
+	const float _ki = 3;
+	const float _kd = -2.25;
+	const float _k = 2.25;
 
 	int _error = 0;
 	int _lastE = 0;
@@ -316,17 +337,17 @@ void setup(){
 
 	uint8_t devStat = imu.dmpInitialize();
 
-//	while(!ready){
-//		if(digitalRead(button) == 0){
-//			con.calibrate();
-//			ready = true;
-//			defaul = false;
-//		} else if(counter >= 5000){
-//			ready = true;
-//		}
-//		delay(1);
-//		counter++;
-//	}
+	while(!ready){
+		if(digitalRead(button) == 0){
+			con.calibrate();
+			ready = true;
+			defaul = false;
+		} else if(counter >= 5000){
+			ready = true;
+		}
+		delay(1);
+		counter++;
+	}
 
 	if(defaul){
 		imu.setXAccelOffset(1501);
@@ -357,7 +378,7 @@ void loop(){
 	con.data = false;
 
 	lastLoopTUSE = millis() - loopStartT;
-	//if(lastLoopTUSE < LOOP_TIME) delay(LOOP_TIME - lastLoopTUSE);
+	if(lastLoopTUSE < LOOP_TIME) delay(LOOP_TIME - lastLoopTUSE);
 	lastLoopT = millis() - loopStartT;
 	loopStartT = millis();
 }
