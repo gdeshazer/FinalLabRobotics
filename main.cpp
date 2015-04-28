@@ -132,17 +132,17 @@ private:
 	int16_t _ax = 0, _ay = 0, _az = 0, _gx = 0, _gy = 0, _gz = 0;
 	float _mean[6];
 
-	float Q_angle  =  0.001; //0.001
-	float Q_gyro   =  0.003;  //0.003
-	float R_angle  =  0.03;  //0.03
-
-	float x_angle = 0;
-	float x_bias = 0;
-	float P_00 = 0, P_01 = 0, P_10 = 0, P_11 = 0;
-	float dt, y, S;
-	float K_0, K_1;
-
 	float kalmanCalculate(float newAngle, float newRate,int looptime) {
+		float Q_angle  =  0.001; //0.001
+		float Q_gyro   =  0.003;  //0.003
+		float R_angle  =  0.03;  //0.03
+
+		float x_angle = 0;
+		float x_bias = 0;
+		float P_00 = 0, P_01 = 0, P_10 = 0, P_11 = 0;
+		float dt, y, S;
+		float K_0, K_1;
+
 		dt = float(looptime)/1000;
 		x_angle += dt * (newRate - x_bias);
 		P_00 +=  - dt * (P_10 + P_01) + Q_angle * dt;
@@ -397,7 +397,7 @@ void loop(){
 	int pwm = 0;
 	if(!con.dmpReady) return;
 
-	while(!con.data && con.fifoCount < con.packetSize);
+	//while(!con.data && con.fifoCount < con.packetSize);
 
 	pwm = m.pid(0, con.filter());
 
