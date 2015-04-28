@@ -11,42 +11,67 @@
 #define rightDir 12
 #define button 8
 
-const int LOOP_TIME = 5;
+const int LOOP_TIME = 9;
 int lastLoopT = LOOP_TIME;
 int lastLoopTUSE = LOOP_TIME;
 unsigned long loopStartT = 0;
 
 MPU6050 imu;
 
+
+/* Potentiometer Class
+ *
+ *     This class takes care of the initialization and
+ *     data retrieval of a potentiometer attached to one
+ *     of the analog input pins.
+ *
+ *     It provides the functionality to both return just
+ *     the raw value, but also it will return a mapped value
+ *     that takes the value read from the potentiometer and
+ *     maps it to a range that is more suitable for use.
+ *
+ */
 class Potentiometer{
+public:
 	Potentiometer(int pin){
 		pinMode(pin, INPUT);
 		_pot = pin;
 		_reading = 0;
 	}
 
-public:
 	int getRaw(){
 		_reading = analogRead(_pot);
 		return _reading;
 	}
 
-	int getReading(int min, int max){
-		return this->getCompensated(this->getRaw(), min, max);
-	}
-
-	int getCompensated(int in, int outMin, int outMax){
-		int inMin = 0, inMax = 1023;
-		return (in - inMin)/(inMax-inMin) * (outMax-outMin) + outMin;
+	float getReading(int min, int max){
+		return this->getCompensated((float) this->getRaw(), (float) min, (float) max);
 	}
 
 private:
 	int _pot;
 	int _reading;
 
+	float getCompensated(float in, float outMin, float outMax){
+		float inMin = 0, inMax = 1024;
+		return outMin + (( (in - inMin) * (outMax-outMin) )/(inMax-inMin));
+	}
+
 };
 
 
+/* IMUControl
+ *   Responsible for handling data retrieval and calculation
+ *   with regards to the MPU6050.  This class and its objects
+ *   expect that the MPU6050 has already been properly initialized
+ *   and that proper communication has been established.
+ *
+ *   NOTE that while DMP functionality is included within this class
+ *   the data processed by DMP is not being used.  Through testing
+ *   it was found that the program executed with more stability when the
+ *   DMP was initialized even if data from it was not being used.
+ *
+ */
 class IMUControl{
 public:
 	bool dmpReady;
@@ -82,21 +107,23 @@ public:
 
 			fifoCount -= packetSize;
 
-//			//---yaw pitch roll ---
-//			imu.dmpGetQuaternion(&q, fifoBuffer);
-//			imu.dmpGetGravity(&gravity, &q);
-//			imu.dmpGetYawPitchRoll(ypr, &q, &gravity);
+			//			//---yaw pitch roll ---
+			//			imu.dmpGetQuaternion(&q, fifoBuffer);
+			//			imu.dmpGetGravity(&gravity, &q);
+			//			imu.dmpGetYawPitchRoll(ypr, &q, &gravity);
 
-//			//---accel compensated for gravity --
-//			imu.dmpGetQuaternion(&q, fifoBuffer);
-//			imu.dmpGetAccel(&aa, fifoBuffer);
-//			imu.dmpGetGravity(&gravity, &q);
-//			imu.dmpGetLinearAccel(&aaReal, &aa, &gravity);
+			//			//---accel compensated for gravity --
+			//			imu.dmpGetQuaternion(&q, fifoBuffer);
+			//			imu.dmpGetAccel(&aa, fifoBuffer);
+			//			imu.dmpGetGravity(&gravity, &q);
+			//			imu.dmpGetLinearAccel(&aaReal, &aa, &gravity);
 
 		}
 
 		_gx = _gx * 250.0/32768.0;
-		acc_angle = this->arctan2(-_ay, _az) -20; //-20 for _ay and _az
+		acc_angle = this->arctan2(-_ay, -_az) -20; //-20 for _ay and _az
+//		Serial.print("acc / gx: \t"); Serial.print(acc_angle);
+//		Serial.print("\t"); Serial.println(_gx);
 
 
 	}
@@ -131,18 +158,17 @@ public:
 private:
 	int16_t _ax = 0, _ay = 0, _az = 0, _gx = 0, _gy = 0, _gz = 0;
 	float _mean[6];
+	float Q_angle  =  0.001; //0.001
+	float Q_gyro   =  0.003;  //0.003
+	float R_angle  =  0.03;  //0.03
+
+	float x_angle = 0;
+	float x_bias = 0;
+	float P_00 = 0, P_01 = 0, P_10 = 0, P_11 = 0;
+	float dt, y, S;
+	float K_0, K_1;
 
 	float kalmanCalculate(float newAngle, float newRate,int looptime) {
-		float Q_angle  =  0.001; //0.001
-		float Q_gyro   =  0.003;  //0.003
-		float R_angle  =  0.03;  //0.03
-
-		float x_angle = 0;
-		float x_bias = 0;
-		float P_00 = 0, P_01 = 0, P_10 = 0, P_11 = 0;
-		float dt, y, S;
-		float K_0, K_1;
-
 		dt = float(looptime)/1000;
 		x_angle += dt * (newRate - x_bias);
 		P_00 +=  - dt * (P_10 + P_01) + Q_angle * dt;
@@ -189,31 +215,45 @@ private:
 		}
 	}
 
-	int arctan2(int y, int x) {                                    // http://www.dspguru.com/comp.dsp/tricks/alg/fxdatan2.htm
-	  int coeff_1 = 128;                                          // angle in Quids (1024 Quids=360¡) <<<<<<<<<<<<<<
-	  int coeff_2 = 3*coeff_1;
-	  float abs_y = abs(y)+1e-10;
-	  float r, angle;
+	int arctan2(int y, int x) {          // http://www.dspguru.com/comp.dsp/tricks/alg/fxdatan2.htm
+		int coeff_1 = 128;                 // angle in Quids (1024 Quids=360¡) <<<<<<<<<<<<<<
+		int coeff_2 = 3*coeff_1;
+		float abs_y = abs(y)+1e-10;
+		float r, angle;
 
-	  if (x >= 0) {
-	    r = (x - abs_y) / (x + abs_y);
-	    angle = coeff_1 - coeff_1 * r;
-	  }  else {
-	    r = (x + abs_y) / (abs_y - x);
-	    angle = coeff_2 - coeff_1 * r;
-	  }
-	  if (y < 0)      return int(-angle);
-	  else            return int(angle);
+		if (x >= 0) {
+			r = (x - abs_y) / (x + abs_y);
+			angle = coeff_1 - coeff_1 * r;
+		}  else {
+			r = (x + abs_y) / (abs_y - x);
+			angle = coeff_2 - coeff_1 * r;
+		}
+		if (y < 0)      return int(-angle);
+		else            return int(angle);
 	}
 
 
 }con;
 
 
+/* MotorControl
+ *   This class is responsible for handling the motor control
+ *   and power calculation using PID.  This class works in
+ *   conjunction with the Potentiometer class to set the values
+ *   for the gain of each control type, kp, ki, and kd.
+ *
+ *   This class expects that the pins that will drive two motors
+ *   for both direction and output, have already been set in the
+ *   setup() function.
+ *
+ */
 class MotorControl{
 public:
 
-	void checkMotor(int pwm){
+	void checkMotor(){
+		int pwm = this->pid(0, con.filter());
+//		Serial.print("pwm value: "); Serial.println(pwm);
+//		Serial.print("filter: "); Serial.println(con.filter());
 		this->motor('L', pwm);
 		this->motor('R', pwm);
 
@@ -222,9 +262,13 @@ public:
 	int pid(int setPoint, int current){
 		Potentiometer kpPot(0), kiPot(1), kdPot(2);
 
-		_kp = kpPot.getReading(-10, 10);
+		_kp = kpPot.getReading(0, 10);
 		_kd = kiPot.getReading(-10, 10);
-		_ki = kdPot.getReading(-10, 10);
+		_ki = kdPot.getReading(0, 10);
+
+//		Serial.print(_kp);
+//		Serial.print("\t"); Serial.print(_kd);
+//		Serial.print("\t"); Serial.println(_ki);
 
 		const int guard = 15;
 		_error = setPoint - current;
@@ -299,9 +343,9 @@ public:
 	}
 
 private:
-	float _kp; //value was 2.5
-	float _ki; //value was 3
-	float _kd; //values was -2.25
+	float _kp = 1; //value was 2.5
+	float _ki = 0; //value was 3
+	float _kd = 0; //values was -2.25
 	float _k = 1; //value was 2.25
 
 	int _error = 0;
@@ -344,11 +388,14 @@ private:
 }m;
 
 
+//interrupt for data ready to read
 void dataReady(){
 	con.data = true;
 }
 
+
 void setup(){
+	//Serial.begin(115200);
 	bool ready = false;
 	bool defaul = true;
 	int counter = 0;
@@ -358,19 +405,28 @@ void setup(){
 	Wire.begin();
 	imu.initialize();
 
+	//Serial.println("init");
+
 	uint8_t devStat = imu.dmpInitialize();
 
-	while(!ready){
-		if(digitalRead(button) == 0){
-			con.calibrate();
-			ready = true;
-			defaul = false;
-		} else if(counter >= 5000){
-			ready = true;
-		}
-		delay(1);
-		counter++;
-	}
+	//optional calibration...however its use typically
+	//caused the Arduino to crash faster or more frequently.
+	//If the button is not pushed within about 5 seconds
+	//Arduino will go to the default values.
+//	while(!ready){
+//		if(digitalRead(button) == 0){
+//			con.calibrate();
+//			ready = true;
+//			defaul = false;
+//		} else if(counter >= 5000){
+//			ready = true;
+//		}
+//		delay(1);
+//		counter++;
+//	}
+
+	//default offset values
+	//Arduino will default to these after a set amount of time
 
 	if(defaul){
 		imu.setXAccelOffset(1501);
@@ -388,25 +444,30 @@ void setup(){
 		con.packetSize = imu.dmpGetFIFOPacketSize();
 	} else {
 		//something has failed
-		//flash some lights or something
 	}
 
 }
 
+
 void loop(){
-	int pwm = 0;
 	if(!con.dmpReady) return;
 
-	//while(!con.data && con.fifoCount < con.packetSize);
+	while(!con.data && con.fifoCount < con.packetSize){
+		//Serial.println("Waiting in main loop for data");
+		//this loop waits for the interrupt to be set high
+	}
+	//Serial.println("executing main loop");
 
-	pwm = m.pid(0, con.filter());
-
-	m.checkMotor(pwm);
+	m.checkMotor();
+	//Serial.print("motor pwm: "); Serial.println(pwm);
 
 	con.data = false;
 
 	lastLoopTUSE = millis() - loopStartT;
-	if(lastLoopTUSE < LOOP_TIME) delay(LOOP_TIME - lastLoopTUSE);
+	if(lastLoopTUSE < LOOP_TIME){
+		//this sets a certain run time for the loop
+		delay(LOOP_TIME - lastLoopTUSE);
+	}
 	lastLoopT = millis() - loopStartT;
 	loopStartT = millis();
 }
