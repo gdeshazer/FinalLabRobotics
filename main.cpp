@@ -18,6 +18,34 @@ unsigned long loopStartT = 0;
 
 MPU6050 imu;
 
+class Potentiometer{
+	Potentiometer(int pin){
+		pinMode(pin, INPUT);
+		_pot = pin;
+		_reading = 0;
+	}
+
+public:
+	int getRaw(){
+		_reading = analogRead(_pot);
+		return _reading;
+	}
+
+	int getReading(int min, int max){
+		return this->getCompensated(this->getRaw(), min, max);
+	}
+
+	int getCompensated(int in, int outMin, int outMax){
+		int inMin = 0, inMax = 1023;
+		return (in - inMin)/(inMax-inMin) * (outMax-outMin) + outMin;
+	}
+
+private:
+	int _pot;
+	int _reading;
+
+};
+
 
 class IMUControl{
 public:
@@ -59,11 +87,11 @@ public:
 //			imu.dmpGetGravity(&gravity, &q);
 //			imu.dmpGetYawPitchRoll(ypr, &q, &gravity);
 
-			//---accel compensated for gravity --
-			imu.dmpGetQuaternion(&q, fifoBuffer);
-			imu.dmpGetAccel(&aa, fifoBuffer);
-			imu.dmpGetGravity(&gravity, &q);
-			imu.dmpGetLinearAccel(&aaReal, &aa, &gravity);
+//			//---accel compensated for gravity --
+//			imu.dmpGetQuaternion(&q, fifoBuffer);
+//			imu.dmpGetAccel(&aa, fifoBuffer);
+//			imu.dmpGetGravity(&gravity, &q);
+//			imu.dmpGetLinearAccel(&aaReal, &aa, &gravity);
 
 		}
 
@@ -192,6 +220,12 @@ public:
 	}
 
 	int pid(int setPoint, int current){
+		Potentiometer kpPot(0), kiPot(1), kdPot(2);
+
+		_kp = kpPot.getReading(-10, 10);
+		_kd = kiPot.getReading(-10, 10);
+		_ki = kdPot.getReading(-10, 10);
+
 		const int guard = 15;
 		_error = setPoint - current;
 		int p =_kp * _error;
@@ -265,10 +299,10 @@ public:
 	}
 
 private:
-	const float _kp = 2.5;
-	const float _ki = 3;
-	const float _kd = -2.25;
-	const float _k = 2.25;
+	float _kp; //value was 2.5
+	float _ki; //value was 3
+	float _kd; //values was -2.25
+	float _k = 1; //value was 2.25
 
 	int _error = 0;
 	int _lastE = 0;
