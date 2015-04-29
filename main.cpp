@@ -121,7 +121,7 @@ public:
 		}
 
 		_gx = _gx * 250.0/32768.0;
-		acc_angle = this->arctan2(-_ay, -_az) -20; //-20 for _ay and _az
+		acc_angle = this->arctan2(-_ay, -_az) -5; //-20 for _ay and _az
 //		Serial.print("acc / gx: \t"); Serial.print(acc_angle);
 //		Serial.print("\t"); Serial.println(_gx);
 
@@ -265,12 +265,12 @@ public:
 		_kp = kpPot.getReading(0, 10);
 		_kd = kiPot.getReading(-10, 10);
 		_ki = kdPot.getReading(0, 10);
-
+//
 //		Serial.print(_kp);
 //		Serial.print("\t"); Serial.print(_kd);
 //		Serial.print("\t"); Serial.println(_ki);
 
-		const int guard = 15;
+		const int guard = 50;
 		_error = setPoint - current;
 		int p =_kp * _error;
 		int intError = intError + _error;
@@ -278,7 +278,14 @@ public:
 		int d = _kd * (_error - _lastE);
 		_lastE = _error;
 
-		return -constrain(_k*(p + i + d), -255, 255);
+		int out = -constrain(_k*(p + i + d), -255, 255);
+		if(out <= 30 && out >= 0){
+			return 30;
+		} else if(out < 0 && out >= - 30){
+			return -30;
+		} else {
+			return out;
+		}
 	}
 
 
@@ -395,7 +402,7 @@ void dataReady(){
 
 
 void setup(){
-	//Serial.begin(115200);
+//	Serial.begin(115200);
 	bool ready = false;
 	bool defaul = true;
 	int counter = 0;
