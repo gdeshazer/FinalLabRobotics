@@ -52,6 +52,7 @@ private:
 	int _pot;
 	int _reading;
 
+	//basic linear interpolation to map raw value to a new range
 	float getCompensated(float in, float outMin, float outMax){
 		float inMin = 0, inMax = 1024;
 		return outMin + (( (in - inMin) * (outMax-outMin) )/(inMax-inMin));
@@ -74,6 +75,7 @@ private:
  */
 class IMUControl{
 public:
+	//---DMP control variables---
 	bool dmpReady;
 	uint16_t packetSize;
 	uint16_t fifoCount;
@@ -85,49 +87,63 @@ public:
 	VectorInt16 aaReal;
 	VectorFloat gravity;
 
+	volatile bool data;
+
 	float euler[3];
 	float ypr[3];
+	//--------------------------
 
 	int acc_angle;
 
-	volatile bool data;
 
+	//much of this function isn't actually used
+	//but is left in place because it seems to improve
+	//the stability of the program
 	void getMeasure(){
 		imu.getMotion6(&_ax, &_ay, &_az, &_gx, &_gy, &_gz);
+
 		data = false;
 		intStat = imu.getIntStatus();
 		fifoCount = imu.getFIFOCount();
+
 		if((intStat & 0x10) || fifoCount == 1024){
 			imu.resetFIFO();
 			//overflow
 		} else if(intStat & 0x02){
-			while(fifoCount < packetSize) fifoCount = imu.getFIFOCount();
+
+			while(fifoCount < packetSize){
+				fifoCount = imu.getFIFOCount();
+			}
 
 			imu.getFIFOBytes(fifoBuffer, packetSize);
 
 			fifoCount -= packetSize;
 
-			//			//---yaw pitch roll ---
-			//			imu.dmpGetQuaternion(&q, fifoBuffer);
-			//			imu.dmpGetGravity(&gravity, &q);
-			//			imu.dmpGetYawPitchRoll(ypr, &q, &gravity);
+			//neither ypr nor the accel from the DMP are used in this program
 
-			//			//---accel compensated for gravity --
-			//			imu.dmpGetQuaternion(&q, fifoBuffer);
-			//			imu.dmpGetAccel(&aa, fifoBuffer);
-			//			imu.dmpGetGravity(&gravity, &q);
-			//			imu.dmpGetLinearAccel(&aaReal, &aa, &gravity);
+			//---yaw pitch roll ---
+			imu.dmpGetQuaternion(&q, fifoBuffer);
+			imu.dmpGetGravity(&gravity, &q);
+			imu.dmpGetYawPitchRoll(ypr, &q, &gravity);
+
+			//---accel compensated for gravity --
+			imu.dmpGetQuaternion(&q, fifoBuffer);
+			imu.dmpGetAccel(&aa, fifoBuffer);
+			imu.dmpGetGravity(&gravity, &q);
+			imu.dmpGetLinearAccel(&aaReal, &aa, &gravity);
 
 		}
 
 		_gx = _gx * 250.0/32768.0;
 		acc_angle = this->arctan2(-_ay, -_az) -2; //-20 for _ay and _az
-//		Serial.print("acc / gx: \t"); Serial.print(acc_angle);
-//		Serial.print("\t"); Serial.print(_gx);
+		//		Serial.print("acc / gx: \t"); Serial.print(acc_angle);
+		//		Serial.print("\t"); Serial.print(_gx);
 
 
 	}
 
+	//optional calibration algorithm
+	//to set the offsets for desired orientation
 	void calibrate(){
 		int offset[6] = {0};
 		this->mean(500);
@@ -150,8 +166,16 @@ public:
 
 	}
 
+	//call to the Kalman filter
+	//this includes a "filter" which throws out
+	//-332 and -68 which came up every so often in
+	//the output from the IMU for reasons unknown
+	//IDEA: Does the Kalman filter need to know the time
+	//it takes to do the measurements or just the
+	//overall run time?
 	int filter(){
 		this->getMeasure();
+
 		if(acc_angle ==-332 && _gx==-68){
 			this->filter();
 		}
@@ -160,7 +184,9 @@ public:
 
 private:
 	int16_t _ax = 0, _ay = 0, _az = 0, _gx = 0, _gy = 0, _gz = 0;
+
 	float _mean[6];
+
 	float Q_angle  =  0.001; //0.001
 	float Q_gyro   =  0.003;  //0.003
 	float R_angle  =  0.009;  //0.03
@@ -196,10 +222,13 @@ private:
 
 	void mean(int sampleSize){
 		int toss = 0.1 * sampleSize;
-		long buff[6] = {0};
 		int i = 0;
+
+		long buff[6] = {0};
+
 		while(i < (sampleSize + (toss + 1))){
 			imu.getMotion6(&_ax, &_ay, &_az, &_gx, &_gy, &_gz);
+
 			if (i < toss && i<=sampleSize+toss) {
 				buff[0] = _ax;
 				buff[1] = _ay;
@@ -219,8 +248,9 @@ private:
 	}
 
 	int arctan2(int y, int x) {          // http://www.dspguru.com/comp.dsp/tricks/alg/fxdatan2.htm
-		int coeff_1 = 128;                 // angle in Quids (1024 Quids=360¡) <<<<<<<<<<<<<<
+		int coeff_1 = 128;
 		int coeff_2 = 3*coeff_1;
+
 		float abs_y = abs(y)+1e-10;
 		float r, angle;
 
@@ -231,8 +261,12 @@ private:
 			r = (x + abs_y) / (abs_y - x);
 			angle = coeff_2 - coeff_1 * r;
 		}
-		if (y < 0)      return int(-angle);
-		else            return int(angle);
+
+		if (y < 0){
+			return int(-angle);
+		} else {
+			return int(angle);
+		}
 	}
 
 
@@ -256,8 +290,10 @@ public:
 	void checkMotor(){
 		int tmp = con.filter();
 		int pwm = this->pid(0, tmp);
-//		Serial.print("pwm value: "); Serial.println(pwm);
-//		Serial.print("\t"); Serial.println(tmp);
+
+		//		Serial.print("pwm value: "); Serial.println(pwm);
+		//		Serial.print("\t"); Serial.println(tmp);
+
 		this->motor('L', pwm);
 		this->motor('R', pwm);
 
@@ -268,11 +304,11 @@ public:
 
 		_kp = kpPot.getReading(0, 100);
 		_ki = kiPot.getReading(0, 10);
-		_kd = kdPot.getReading(0, 100);
-//
-//		Serial.print(_kp);
-//		Serial.print("\t"); Serial.print(_kd);
-//		Serial.print("\t"); Serial.println(_ki);
+		_kd = kdPot.getReading(0, -100);
+
+		//		Serial.print(_kp);
+		//		Serial.print("\t"); Serial.print(_kd);
+		//		Serial.print("\t"); Serial.println(_ki);
 
 		const int guard = 50;
 		_error = setPoint - current;
@@ -354,10 +390,10 @@ public:
 	}
 
 private:
-	float _kp = 1; //value was 2.5
-	float _ki = 0; //value was 3
-	float _kd = 0; //values was -2.25
-	float _k = 1; //value was 2.25
+	float _kp = 1;
+	float _ki = 0;
+	float _kd = 0;
+	float _k = 1;
 
 	int _error = 0;
 	int _lastE = 0;
@@ -400,13 +436,15 @@ private:
 
 
 //interrupt for data ready to read
+//Used for interaction with the DMP
+//on board the MPU6050
 void dataReady(){
 	con.data = true;
 }
 
 
 void setup(){
-//	Serial.begin(115200);
+	//	Serial.begin(115200);
 	bool ready = false;
 	bool defaul = true;
 	int counter = 0;
@@ -424,21 +462,20 @@ void setup(){
 	//caused the Arduino to crash faster or more frequently.
 	//If the button is not pushed within about 5 seconds
 	//Arduino will go to the default values.
-//	while(!ready){
-//		if(digitalRead(button) == 0){
-//			con.calibrate();
-//			ready = true;
-//			defaul = false;
-//		} else if(counter >= 5000){
-//			ready = true;
-//		}
-//		delay(1);
-//		counter++;
-//	}
+	while(!ready){
+		if(digitalRead(button) == 0){
+			con.calibrate();
+			ready = true;
+			defaul = false;
+		} else if(counter >= 5000){
+			ready = true;
+		}
+		delay(1);
+		counter++;
+	}
 
 	//default offset values
 	//Arduino will default to these after a set amount of time
-
 	if(defaul){
 		imu.setXAccelOffset(1501);
 		imu.setYAccelOffset(1251);
@@ -448,6 +485,7 @@ void setup(){
 		imu.setZGyroOffset(4);
 	}
 
+	//DMP setup and check
 	if(devStat == 0){
 		imu.setDMPEnabled(true);
 		con.dmpReady = true;
@@ -463,6 +501,7 @@ void setup(){
 void loop(){
 	if(!con.dmpReady) return;
 
+	//removing this while loop will cause the Arduino to crash
 	while(!con.data && con.fifoCount < con.packetSize){
 		//Serial.println("Waiting in main loop for data");
 		//this loop waits for the interrupt to be set high
@@ -474,6 +513,7 @@ void loop(){
 
 	con.data = false;
 
+	//timing stuff for use in the Kalman filter
 	lastLoopTUSE = millis() - loopStartT;
 	if(lastLoopTUSE < LOOP_TIME){
 		//this sets a certain run time for the loop
