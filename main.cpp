@@ -122,8 +122,8 @@ public:
 
 		_gx = _gx * 250.0/32768.0;
 		acc_angle = this->arctan2(-_ay, -_az) -2; //-20 for _ay and _az
-		Serial.print("acc / gx: \t"); Serial.print(acc_angle);
-		Serial.print("\t"); Serial.print(_gx);
+//		Serial.print("acc / gx: \t"); Serial.print(acc_angle);
+//		Serial.print("\t"); Serial.print(_gx);
 
 
 	}
@@ -163,7 +163,7 @@ private:
 	float _mean[6];
 	float Q_angle  =  0.001; //0.001
 	float Q_gyro   =  0.003;  //0.003
-	float R_angle  =  0.1;  //0.03
+	float R_angle  =  0.009;  //0.03
 
 	float x_angle = 0;
 	float x_bias = 0;
@@ -257,7 +257,7 @@ public:
 		int tmp = con.filter();
 		int pwm = this->pid(0, tmp);
 //		Serial.print("pwm value: "); Serial.println(pwm);
-		Serial.print("\t"); Serial.println(tmp);
+//		Serial.print("\t"); Serial.println(tmp);
 		this->motor('L', pwm);
 		this->motor('R', pwm);
 
@@ -266,9 +266,9 @@ public:
 	int pid(int setPoint, int current){
 		Potentiometer kpPot(0), kiPot(1), kdPot(2);
 
-		_kp = kpPot.getReading(20, 30);
+		_kp = kpPot.getReading(0, 100);
 		_ki = kiPot.getReading(0, 10);
-		_kd = kdPot.getReading(10, 20);
+		_kd = kdPot.getReading(0, 100);
 //
 //		Serial.print(_kp);
 //		Serial.print("\t"); Serial.print(_kd);
@@ -406,7 +406,7 @@ void dataReady(){
 
 
 void setup(){
-	Serial.begin(115200);
+//	Serial.begin(115200);
 	bool ready = false;
 	bool defaul = true;
 	int counter = 0;
