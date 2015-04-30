@@ -152,6 +152,9 @@ public:
 
 	int filter(){
 		this->getMeasure();
+		if(acc_angle ==-332 && _gx==-68){
+			this->filter();
+		}
 		return kalmanCalculate(acc_angle, _gx, LOOP_TIME);
 	}
 
