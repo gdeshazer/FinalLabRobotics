@@ -304,7 +304,7 @@ public:
 
 		_kp = kpPot.getReading(0, 100);
 		_ki = kiPot.getReading(0, 10);
-		_kd = kdPot.getReading(0, -100);
+		_kd = kdPot.getReading(0, 100);
 
 		//		Serial.print(_kp);
 		//		Serial.print("\t"); Serial.print(_kd);
