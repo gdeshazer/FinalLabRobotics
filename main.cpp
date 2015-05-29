@@ -5,11 +5,12 @@
 #include "I2Cdev.h"
 #include "MPU6050_6Axis_MotionApps20.h"
 
-#define leftM 11
-#define leftDir 13
-#define rightM 3
-#define rightDir 12
-#define button 8
+#define leftM 9
+#define leftDir 7
+#define rightM 10
+#define rightDir 8
+#define fault 12
+#define enable 4
 
 const int LOOP_TIME = 9;
 int lastLoopT = LOOP_TIME;
@@ -135,9 +136,9 @@ public:
 		}
 
 		_gx = _gx * 250.0/32768.0;
-		acc_angle = this->arctan2(-_ay, -_az) -2; //-20 for _ay and _az
-		//		Serial.print("acc / gx: \t"); Serial.print(acc_angle);
-		//		Serial.print("\t"); Serial.print(_gx);
+		acc_angle = this->arctan2(-_az, -_ay) - 27; //-20 for _ay and _az
+//		Serial.print("acc / gx: \t"); Serial.print(acc_angle);
+//		Serial.print("\t"); Serial.println(_gx);
 
 
 	}
@@ -179,6 +180,15 @@ public:
 		if(acc_angle ==-332 && _gx==-68){
 			this->filter();
 		}
+
+		// -- DEADBAND --
+
+		if(acc_angle <=5 && acc_angle > 0){
+			acc_angle = 11;
+		} else if(acc_angle >=-5 && acc_angle < 0){
+			acc_angle = -11;
+		}
+
 		return kalmanCalculate(acc_angle, _gx, LOOP_TIME);
 	}
 
@@ -189,7 +199,7 @@ private:
 
 	float Q_angle  =  0.001; //0.001
 	float Q_gyro   =  0.003;  //0.003
-	float R_angle  =  0.009;  //0.03
+	float R_angle  =  0.03;  //0.03
 
 	float x_angle = 0;
 	float x_bias = 0;
@@ -288,11 +298,13 @@ class MotorControl{
 public:
 
 	void checkMotor(){
+		digitalWrite(enable, HIGH);
+		this->checkFault();
 		int tmp = con.filter();
-		int pwm = this->pid(0, tmp);
+		int pwm = -this->pid(0, tmp);
 
-		//		Serial.print("pwm value: "); Serial.println(pwm);
-		//		Serial.print("\t"); Serial.println(tmp);
+//		Serial.print("pwm value: "); Serial.println(pwm);
+//		Serial.print("Filter value: "); Serial.println(tmp);
 
 		this->motor('L', pwm);
 		this->motor('R', pwm);
@@ -300,17 +312,24 @@ public:
 	}
 
 	int pid(int setPoint, int current){
-		Potentiometer kpPot(0), kiPot(1), kdPot(2);
+		Potentiometer kPot(3);
+		Potentiometer kpPot(2);
+//		Potentiometer kdPot(3);
+//		Potentiometer kiPot(3);
 
-		_kp = kpPot.getReading(0, 100);
-		_ki = kiPot.getReading(0, 10);
-		_kd = kdPot.getReading(0, 100);
 
-		//		Serial.print(_kp);
-		//		Serial.print("\t"); Serial.print(_kd);
-		//		Serial.print("\t"); Serial.println(_ki);
+		_k = kPot.getReading(1,10);
+		_kp = kpPot.getReading(1, 10);
+		float gain = 0.65 * _kp;
+		_kd = 0;//kdPot.getReading(-gain, gain); //was at 1.81
+		_ki = 0;//kiPot.getReading(0, 10);
 
-		const int guard = 50;
+//		Serial.print(_k);
+//		Serial.print("\t"); Serial.print(_kp);
+//		Serial.print("\t"); Serial.print(_kd);
+//		Serial.print("\t"); Serial.println(_ki);
+
+		const int guard = 25;
 		_error = setPoint - current;
 		int p =_kp * _error;
 		int intError = intError + _error;
@@ -319,10 +338,12 @@ public:
 		_lastE = _error;
 
 		int out = -constrain(_k*(p + i + d), -255, 255);
-		if(out <= 30 && out >= 0){
-			return 30;
-		} else if(out < 0 && out >= - 30){
-			return -30;
+		if(out <= 5 && out >=0){
+			out = 5;
+			return out;
+		} else if(out >= -5 && out <= 0){
+			out = -5;
+			return out;
 		} else {
 			return out;
 		}
@@ -432,6 +453,12 @@ private:
 		}  // end motor B
 	}
 
+	void checkFault(){
+		if(digitalRead(fault)==0){
+			while(true);
+		}
+	}
+
 }m;
 
 
@@ -444,17 +471,19 @@ void dataReady(){
 
 
 void setup(){
-	//	Serial.begin(115200);
+//	Serial.begin(115200);
 	bool ready = false;
 	bool defaul = true;
 	int counter = 0;
 	attachInterrupt(0, dataReady, RISING);
-	pinMode(button, INPUT_PULLUP);
+	pinMode(enable, OUTPUT);
+	pinMode(fault, INPUT);
 
 	Wire.begin();
+	TWBR = 24;
 	imu.initialize();
 
-	//Serial.println("init");
+//	Serial.println("init");
 
 	uint8_t devStat = imu.dmpInitialize();
 
@@ -462,17 +491,17 @@ void setup(){
 	//caused the Arduino to crash faster or more frequently.
 	//If the button is not pushed within about 5 seconds
 	//Arduino will go to the default values.
-	while(!ready){
-		if(digitalRead(button) == 0){
-			con.calibrate();
-			ready = true;
-			defaul = false;
-		} else if(counter >= 5000){
-			ready = true;
-		}
-		delay(1);
-		counter++;
-	}
+//	while(!ready){
+//		if(digitalRead(button) == 0){
+//			con.calibrate();
+//			ready = true;
+//			defaul = false;
+//		} else if(counter >= 5000){
+//			ready = true;
+//		}
+//		delay(1);
+//		counter++;
+//	}
 
 	//default offset values
 	//Arduino will default to these after a set amount of time
@@ -506,10 +535,9 @@ void loop(){
 		//Serial.println("Waiting in main loop for data");
 		//this loop waits for the interrupt to be set high
 	}
-	//Serial.println("executing main loop");
+//	Serial.println("executing main loop");
 
 	m.checkMotor();
-	//Serial.print("motor pwm: "); Serial.println(pwm);
 
 	con.data = false;
 
@@ -517,7 +545,7 @@ void loop(){
 	lastLoopTUSE = millis() - loopStartT;
 	if(lastLoopTUSE < LOOP_TIME){
 		//this sets a certain run time for the loop
-		//delay(LOOP_TIME - lastLoopTUSE);
+		delay(LOOP_TIME - lastLoopTUSE);
 	}
 	lastLoopT = millis() - loopStartT;
 	loopStartT = millis();
