@@ -5,12 +5,14 @@
 #include "I2Cdev.h"
 #include "MPU6050_6Axis_MotionApps20.h"
 
-#define leftM 9
-#define leftDir 7
-#define rightM 10
-#define rightDir 8
+#define leftM 11
+#define leftDir 13
+#define rightM 3
+#define rightDir 12
+#define button 8
 #define fault 12
 #define enable 4
+
 
 const int LOOP_TIME = 9;
 int lastLoopT = LOOP_TIME;
@@ -76,23 +78,23 @@ private:
  */
 class IMUControl{
 public:
-	//---DMP control variables---
-	bool dmpReady;
-	uint16_t packetSize;
-	uint16_t fifoCount;
-	uint8_t intStat;
-	uint8_t fifoBuffer[64];
-
-	Quaternion q;
-	VectorInt16 aa;
-	VectorInt16 aaReal;
-	VectorFloat gravity;
-
-	volatile bool data;
-
-	float euler[3];
-	float ypr[3];
-	//--------------------------
+//	//---DMP control variables---
+//	bool dmpReady;
+//	uint16_t packetSize;
+//	uint16_t fifoCount;
+//	uint8_t intStat;
+//	uint8_t fifoBuffer[64];
+//
+//	Quaternion q;
+//	VectorInt16 aa;
+//	VectorInt16 aaReal;
+//	VectorFloat gravity;
+//
+//	volatile bool data;
+//
+//	float euler[3];
+//	float ypr[3];
+//	//--------------------------
 
 	int acc_angle;
 
@@ -102,38 +104,38 @@ public:
 	//the stability of the program
 	void getMeasure(){
 		imu.getMotion6(&_ax, &_ay, &_az, &_gx, &_gy, &_gz);
-
-		data = false;
-		intStat = imu.getIntStatus();
-		fifoCount = imu.getFIFOCount();
-
-		if((intStat & 0x10) || fifoCount == 1024){
-			imu.resetFIFO();
-			//overflow
-		} else if(intStat & 0x02){
-
-			while(fifoCount < packetSize){
-				fifoCount = imu.getFIFOCount();
-			}
-
-			imu.getFIFOBytes(fifoBuffer, packetSize);
-
-			fifoCount -= packetSize;
-
-			//neither ypr nor the accel from the DMP are used in this program
-
-			//---yaw pitch roll ---
-			imu.dmpGetQuaternion(&q, fifoBuffer);
-			imu.dmpGetGravity(&gravity, &q);
-			imu.dmpGetYawPitchRoll(ypr, &q, &gravity);
-
-			//---accel compensated for gravity --
-			imu.dmpGetQuaternion(&q, fifoBuffer);
-			imu.dmpGetAccel(&aa, fifoBuffer);
-			imu.dmpGetGravity(&gravity, &q);
-			imu.dmpGetLinearAccel(&aaReal, &aa, &gravity);
-
-		}
+//
+//		data = false;
+//		intStat = imu.getIntStatus();
+//		fifoCount = imu.getFIFOCount();
+//
+//		if((intStat & 0x10) || fifoCount == 1024){
+//			imu.resetFIFO();
+//			//overflow
+//		} else if(intStat & 0x02){
+//
+//			while(fifoCount < packetSize){
+//				fifoCount = imu.getFIFOCount();
+//			}
+//
+//			imu.getFIFOBytes(fifoBuffer, packetSize);
+//
+//			fifoCount -= packetSize;
+//
+//			//neither ypr nor the accel from the DMP are used in this program
+//
+//			//---yaw pitch roll ---
+//			imu.dmpGetQuaternion(&q, fifoBuffer);
+//			imu.dmpGetGravity(&gravity, &q);
+//			imu.dmpGetYawPitchRoll(ypr, &q, &gravity);
+//
+//			//---accel compensated for gravity --
+//			imu.dmpGetQuaternion(&q, fifoBuffer);
+//			imu.dmpGetAccel(&aa, fifoBuffer);
+//			imu.dmpGetGravity(&gravity, &q);
+//			imu.dmpGetLinearAccel(&aaReal, &aa, &gravity);
+//
+//		}
 
 		_gx = _gx * 250.0/32768.0;
 		acc_angle = this->arctan2(-_az, -_ay) - 27; //-20 for _ay and _az
@@ -300,8 +302,7 @@ public:
 	void checkMotor(){
 		digitalWrite(enable, HIGH);
 		this->checkFault();
-		int tmp = con.filter();
-		int pwm = -this->pid(0, tmp);
+		int pwm = -this->pid(0, con.filter());
 
 //		Serial.print("pwm value: "); Serial.println(pwm);
 //		Serial.print("Filter value: "); Serial.println(tmp);
@@ -318,7 +319,7 @@ public:
 //		Potentiometer kiPot(3);
 
 
-		_k = kPot.getReading(1,10);
+		_k = kPot.getReading(1, 10);
 		_kp = kpPot.getReading(1, 10);
 		float gain = 0.65 * _kp;
 		_kd = 0;//kdPot.getReading(-gain, gain); //was at 1.81
@@ -330,12 +331,18 @@ public:
 //		Serial.print("\t"); Serial.println(_ki);
 
 		const int guard = 25;
+
 		_error = setPoint - current;
+
 		int p =_kp * _error;
+
 		int intError = intError + _error;
 		int i = _ki * constrain(intError, -guard, guard);
+
 		int d = _kd * (_error - _lastE);
+
 		_lastE = _error;
+
 
 		int out = -constrain(_k*(p + i + d), -255, 255);
 		if(out <= 5 && out >=0){
@@ -453,6 +460,8 @@ private:
 		}  // end motor B
 	}
 
+	//fuction specific to implementation of Polulu driver
+	//board
 	void checkFault(){
 		if(digitalRead(fault)==0){
 			while(true);
@@ -462,12 +471,12 @@ private:
 }m;
 
 
-//interrupt for data ready to read
-//Used for interaction with the DMP
-//on board the MPU6050
-void dataReady(){
-	con.data = true;
-}
+////interrupt for data ready to read
+////Used for interaction with the DMP
+////on board the MPU6050
+//void dataReady(){
+//	con.data = true;
+//}
 
 
 void setup(){
@@ -475,7 +484,8 @@ void setup(){
 	bool ready = false;
 	bool defaul = true;
 	int counter = 0;
-	attachInterrupt(0, dataReady, RISING);
+
+	//	attachInterrupt(0, dataReady, RISING);
 	pinMode(enable, OUTPUT);
 	pinMode(fault, INPUT);
 
@@ -485,7 +495,7 @@ void setup(){
 
 //	Serial.println("init");
 
-	uint8_t devStat = imu.dmpInitialize();
+//	uint8_t devStat = imu.dmpInitialize();
 
 	//optional calibration...however its use typically
 	//caused the Arduino to crash faster or more frequently.
@@ -514,32 +524,32 @@ void setup(){
 		imu.setZGyroOffset(4);
 	}
 
-	//DMP setup and check
-	if(devStat == 0){
-		imu.setDMPEnabled(true);
-		con.dmpReady = true;
-
-		con.packetSize = imu.dmpGetFIFOPacketSize();
-	} else {
-		//something has failed
-	}
+//	//DMP setup and check
+//	if(devStat == 0){
+//		imu.setDMPEnabled(true);
+//		con.dmpReady = true;
+//
+//		con.packetSize = imu.dmpGetFIFOPacketSize();
+//	} else {
+//		//something has failed
+//	}
 
 }
 
 
 void loop(){
-	if(!con.dmpReady) return;
-
-	//removing this while loop will cause the Arduino to crash
-	while(!con.data && con.fifoCount < con.packetSize){
-		//Serial.println("Waiting in main loop for data");
-		//this loop waits for the interrupt to be set high
-	}
+//	if(!con.dmpReady) return;
+//
+//	//removing this while loop will cause the Arduino to crash
+//	while(!con.data && con.fifoCount < con.packetSize){
+//		//Serial.println("Waiting in main loop for data");
+//		//this loop waits for the interrupt to be set high
+//	}
 //	Serial.println("executing main loop");
 
 	m.checkMotor();
 
-	con.data = false;
+//	con.data = false;
 
 	//timing stuff for use in the Kalman filter
 	lastLoopTUSE = millis() - loopStartT;
