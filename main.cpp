@@ -4,6 +4,7 @@
 #include "Wire.h"
 #include "I2Cdev.h"
 #include "MPU6050_6Axis_MotionApps20.h"
+#include "Potentiometer.h"
 
 #define leftM 11
 #define leftDir 13
@@ -20,48 +21,6 @@ int lastLoopTUSE = LOOP_TIME;
 unsigned long loopStartT = 0;
 
 MPU6050 imu;
-
-
-/* Potentiometer Class
- *
- *     This class takes care of the initialization and
- *     data retrieval of a potentiometer attached to one
- *     of the analog input pins.
- *
- *     It provides the functionality to both return just
- *     the raw value, but also it will return a mapped value
- *     that takes the value read from the potentiometer and
- *     maps it to a range that is more suitable for use.
- *
- */
-class Potentiometer{
-public:
-	Potentiometer(int pin){
-		pinMode(pin, INPUT);
-		_pot = pin;
-		_reading = 0;
-	}
-
-	int getRaw(){
-		_reading = analogRead(_pot);
-		return _reading;
-	}
-
-	float getReading(int min, int max){
-		return this->getCompensated((float) this->getRaw(), (float) min, (float) max);
-	}
-
-private:
-	int _pot;
-	int _reading;
-
-	//basic linear interpolation to map raw value to a new range
-	float getCompensated(float in, float outMin, float outMax){
-		float inMin = 0, inMax = 1024;
-		return outMin + (( (in - inMin) * (outMax-outMin) )/(inMax-inMin));
-	}
-
-};
 
 
 /* IMUControl
@@ -295,6 +254,9 @@ private:
  *   for both direction and output, have already been set in the
  *   setup() function.
  *
+ *   IDEA: added pin initialization to the constructor for this
+ *         class
+ *
  */
 class MotorControl{
 public:
@@ -460,7 +422,7 @@ private:
 		}  // end motor B
 	}
 
-	//fuction specific to implementation of Polulu driver
+	//function specific to implementation of Polulu driver
 	//board
 	void checkFault(){
 		if(digitalRead(fault)==0){
@@ -486,6 +448,7 @@ void setup(){
 	int counter = 0;
 
 	//	attachInterrupt(0, dataReady, RISING);
+
 	pinMode(enable, OUTPUT);
 	pinMode(fault, INPUT);
 
