@@ -96,8 +96,8 @@ public:
 
 		_gx = _gx * 250.0/32768.0;
 		acc_angle = this->arctan2(-_az, -_ay) - 27; //-20 for _ay and _az
-//		Serial.print("acc / gx: \t"); Serial.print(acc_angle);
-//		Serial.print("\t"); Serial.println(_gx);
+		//		Serial.print("acc / gx: \t"); Serial.print(acc_angle);
+		//		Serial.print("\t"); Serial.println(_gx);
 
 
 	}
@@ -265,8 +265,8 @@ public:
 		int tmp = con.filter();
 		int pwm = -this->pid(0, tmp);
 
-//		Serial.print("pwm value: "); Serial.println(pwm);
-//		Serial.print("Filter value: "); Serial.println(tmp);
+		//		Serial.print("pwm value: "); Serial.println(pwm);
+		//		Serial.print("Filter value: "); Serial.println(tmp);
 
 		this->motor('L', pwm);
 		this->motor('R', pwm);
@@ -276,8 +276,8 @@ public:
 	int pid(int setPoint, int current){
 		Potentiometer kPot(3);
 		Potentiometer kpPot(2);
-//		Potentiometer kdPot(3);
-//		Potentiometer kiPot(3);
+		//		Potentiometer kdPot(3);
+		//		Potentiometer kiPot(3);
 
 
 		_k = kPot.getReading(1,10);
@@ -286,10 +286,10 @@ public:
 		_kd = 0;//kdPot.getReading(-gain, gain); //was at 1.81
 		_ki = 0;//kiPot.getReading(0, 10);
 
-//		Serial.print(_k);
-//		Serial.print("\t"); Serial.print(_kp);
-//		Serial.print("\t"); Serial.print(_kd);
-//		Serial.print("\t"); Serial.println(_ki);
+		//		Serial.print(_k);
+		//		Serial.print("\t"); Serial.print(_kp);
+		//		Serial.print("\t"); Serial.print(_kd);
+		//		Serial.print("\t"); Serial.println(_ki);
 
 		const int guard = 25;
 		_error = setPoint - current;
@@ -415,11 +415,8 @@ private:
 		}  // end motor B
 	}
 
-<<<<<<< HEAD
-=======
 	//function specific to implementation of Polulu driver
 	//board
->>>>>>> 7f6789a... Removed Pot class from main
 	void checkFault(){
 		if(digitalRead(fault)==0){
 			while(true);
@@ -438,17 +435,14 @@ void dataReady(){
 
 
 void setup(){
-//	Serial.begin(115200);
+	//	Serial.begin(115200);
 	bool ready = false;
 	bool defaul = true;
 	int counter = 0;
-<<<<<<< HEAD
 	attachInterrupt(0, dataReady, RISING);
-=======
 
 	//	attachInterrupt(0, dataReady, RISING);
 
->>>>>>> 7f6789a... Removed Pot class from main
 	pinMode(enable, OUTPUT);
 	pinMode(fault, INPUT);
 
@@ -456,7 +450,7 @@ void setup(){
 	TWBR = 24;
 	imu.initialize();
 
-//	Serial.println("init");
+	//	Serial.println("init");
 
 	uint8_t devStat = imu.dmpInitialize();
 
@@ -464,17 +458,17 @@ void setup(){
 	//caused the Arduino to crash faster or more frequently.
 	//If the button is not pushed within about 5 seconds
 	//Arduino will go to the default values.
-//	while(!ready){
-//		if(digitalRead(button) == 0){
-//			con.calibrate();
-//			ready = true;
-//			defaul = false;
-//		} else if(counter >= 5000){
-//			ready = true;
-//		}
-//		delay(1);
-//		counter++;
-//	}
+	//	while(!ready){
+	//		if(digitalRead(button) == 0){
+	//			con.calibrate();
+	//			ready = true;
+	//			defaul = false;
+	//		} else if(counter >= 5000){
+	//			ready = true;
+	//		}
+	//		delay(1);
+	//		counter++;
+	//	}
 
 	//default offset values
 	//Arduino will default to these after a set amount of time
@@ -508,7 +502,7 @@ void loop(){
 		//Serial.println("Waiting in main loop for data");
 		//this loop waits for the interrupt to be set high
 	}
-//	Serial.println("executing main loop");
+	//	Serial.println("executing main loop");
 
 	m.checkMotor();
 
