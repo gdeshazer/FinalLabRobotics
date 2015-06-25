@@ -23,18 +23,18 @@ unsigned long loopStartT = 0;
 MPU6050 imu;
 
 
-/* IMUControl
+/* Accelerometer control
  *   Responsible for handling data retrieval and calculation
  *   with regards to the MPU6050.  This class and its objects
  *   expect that the MPU6050 has already been properly initialized
  *   and that proper communication has been established.
  *
  */
-class IMUControl{
+class Accelerometer{
 public:
 	int acc_angle;
 
-	void getMeasure(){
+	void getMeasurement(){
 		imu.getMotion6(&_ax, &_ay, &_az, &_gx, &_gy, &_gz);
 
 		_gx = _gx * 250.0/32768.0;
@@ -78,7 +78,7 @@ public:
 	//overall run time?
 	int filter(){
 		digitalWrite(LED, HIGH);
-		this->getMeasure();
+		this->getMeasurement();
 		digitalWrite(LED, LOW);
 
 		if(acc_angle ==-332 && _gx==-68){
@@ -93,7 +93,9 @@ public:
 			acc_angle = -11;
 		}
 
-		return kalmanCalculate(acc_angle, _gx, LOOP_TIME);
+		// --------------
+
+		return kalmanFilter(acc_angle, _gx, LOOP_TIME);
 	}
 
 private:
@@ -111,7 +113,7 @@ private:
 	float dt, y, S;
 	float K_0, K_1;
 
-	float kalmanCalculate(float newAngle, float newRate,int looptime) {
+	float kalmanFilter(float newAngle, float newRate,int looptime) {
 		dt = float(looptime)/1000;
 		x_angle += dt * (newRate - x_bias);
 		P_00 +=  - dt * (P_10 + P_01) + Q_angle * dt;
@@ -184,7 +186,7 @@ private:
 	}
 
 
-}con;
+}accelControl;
 
 
 /* MotorControl
@@ -204,10 +206,10 @@ private:
 class MotorControl{
 public:
 
-	void checkMotor(){
+	void updateMotor(){
 		digitalWrite(enable, HIGH);
 		this->checkFault();
-		int pwm = -this->pid(0, con.filter());
+		int pwm = -this->pidControl(0, accelControl.filter());
 
 //		Serial.print("pwm value: "); Serial.println(pwm);
 //		Serial.print("Filter value: "); Serial.println(tmp);
@@ -217,7 +219,7 @@ public:
 
 	}
 
-	int pid(int setPoint, int current){
+	int pidControl(int setPoint, int current){
 		Potentiometer kPot(3);
 		Potentiometer kpPot(2);
 //		Potentiometer kdPot(3);
@@ -373,7 +375,7 @@ private:
 		}
 	}
 
-}m;
+}motor;
 
 
 void setup(){
@@ -425,7 +427,7 @@ void setup(){
 void loop(){
 //	Serial.println("executing main loop");
 
-	m.checkMotor();
+	motor.updateMotor();
 
 	//timing stuff for use in the Kalman filter
 	lastLoopTUSE = millis() - loopStartT;
