@@ -12,6 +12,7 @@
 #define rightDir 8
 #define fault 12
 #define enable 4
+#define LED 13
 
 const int LOOP_TIME = 9;
 int lastLoopT = LOOP_TIME;
@@ -134,7 +135,9 @@ public:
 	//it takes to do the measurements or just the
 	//overall run time?
 	int filter(){
+		digitalWrite(LED, HIGH);
 		this->getMeasure();
+		digitalWrite(LED, LOW);
 
 		if(acc_angle ==-332 && _gx==-68){
 			this->filter();
@@ -445,6 +448,7 @@ void setup(){
 
 	pinMode(enable, OUTPUT);
 	pinMode(fault, INPUT);
+	pinMode(LED, OUTPUT);
 
 	Wire.begin();
 	TWBR = 24;
