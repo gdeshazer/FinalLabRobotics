@@ -98,6 +98,14 @@ public:
 		return kalmanFilter(acc_angle, _gx, LOOP_TIME);
 	}
 
+	bool tooFar(){
+		if(acc_angle >= 33 || acc_angle <= -33){
+			return true;
+		} else {
+			return false;
+		}
+	}
+
 private:
 	int16_t _ax = 0, _ay = 0, _az = 0, _gx = 0, _gy = 0, _gz = 0;
 
@@ -209,21 +217,28 @@ public:
 	void updateMotor(){
 		digitalWrite(enable, HIGH);
 		this->checkFault();
-		int pwm = -this->pidControl(0, accelControl.filter());
+		bool overLean = accelControl.tooFar();
+		if(!overLean) {
+			int pwm = -this->pidControl(0, accelControl.filter());
 
-//		Serial.print("pwm value: "); Serial.println(pwm);
-//		Serial.print("Filter value: "); Serial.println(tmp);
+			//		Serial.print("pwm value: "); Serial.println(pwm);
+			//		Serial.print("Filter value: "); Serial.println(tmp);
 
-		this->motor('L', pwm);
-		this->motor('R', pwm);
+			this->motor('L', pwm);
+			this->motor('R', pwm);
+		} else {
+			//leaning too far
+			this->motor('L', 0);
+			this->motor('R', 0);
+		}
 
 	}
 
 	int pidControl(int setPoint, int current){
 		Potentiometer kPot(3);
 		Potentiometer kpPot(2);
-//		Potentiometer kdPot(3);
-//		Potentiometer kiPot(3);
+		//		Potentiometer kdPot(3);
+		//		Potentiometer kiPot(3);
 
 
 		_k = kPot.getReading(1, 10);
@@ -232,10 +247,10 @@ public:
 		_kd = 0;//kdPot.getReading(-gain, gain); //was at 1.81
 		_ki = 0;//kiPot.getReading(0, 10);
 
-//		Serial.print(_k);
-//		Serial.print("\t"); Serial.print(_kp);
-//		Serial.print("\t"); Serial.print(_kd);
-//		Serial.print("\t"); Serial.println(_ki);
+		//		Serial.print(_k);
+		//		Serial.print("\t"); Serial.print(_kp);
+		//		Serial.print("\t"); Serial.print(_kd);
+		//		Serial.print("\t"); Serial.println(_ki);
 
 		const int guard = 25;
 
@@ -381,7 +396,6 @@ private:
 void setup(){
 	Serial.begin(115200);
 	bool ready = false;
-	bool defaul = true;
 	int counter = 0;
 
 	pinMode(enable, OUTPUT);
@@ -389,43 +403,25 @@ void setup(){
 	pinMode(LED, OUTPUT);
 
 	Wire.begin();
-	TWBR = 24;
+	//	TWBR = 24;
 	imu.initialize();
 
-//	Serial.println("init");
+	//	Serial.println("init");
 
-	//optional calibration...however its use typically
-	//caused the Arduino to crash faster or more frequently.
-	//If the button is not pushed within about 5 seconds
-	//Arduino will go to the default values.
-//	while(!ready){
-//		if(digitalRead(button) == 0){
-//			con.calibrate();
-//			ready = true;
-//			defaul = false;
-//		} else if(counter >= 5000){
-//			ready = true;
-//		}
-//		delay(1);
-//		counter++;
-//	}
 
 	//default offset values
-	//Arduino will default to these after a set amount of time
-	if(defaul){
-		imu.setXAccelOffset(1501);
-		imu.setYAccelOffset(1251);
-		imu.setZAccelOffset(1262);
-		imu.setXGyroOffset(-4);
-		imu.setYGyroOffset(4);
-		imu.setZGyroOffset(4);
-	}
+	imu.setXAccelOffset(1501);
+	imu.setYAccelOffset(1251);
+	imu.setZAccelOffset(1262);
+	imu.setXGyroOffset(-4);
+	imu.setYGyroOffset(4);
+	imu.setZGyroOffset(4);
 
 }
 
 
 void loop(){
-//	Serial.println("executing main loop");
+	//	Serial.println("executing main loop");
 
 	motor.updateMotor();
 
