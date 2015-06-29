@@ -38,8 +38,9 @@ public:
 		imu.getMotion6(&_ax, &_ay, &_az, &_gx, &_gy, &_gz);
 
 		_gx = _gx * 250.0/32768.0;
-		acc_angle = this->arctan2(-_az, -_ay) - 27; //-20 for _ay and _az
+		acc_angle = this->arctan2(-_az, -_ay) -38; //-20 for _ay and _az
 		Serial.print("acc / gx: \t"); Serial.print(acc_angle);
+		Serial.print("\t"); Serial.println(_gx);
 //		Serial.print("\t"); Serial.println(_gx);
 //		Serial.println("sampled position");
 
