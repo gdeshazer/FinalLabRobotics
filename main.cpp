@@ -15,7 +15,7 @@
 #define LED 13
 
 
-const int LOOP_TIME = 9;
+const int LOOP_TIME = 5;
 int lastLoopT = LOOP_TIME;
 int lastLoopTUSE = LOOP_TIME;
 unsigned long loopStartT = 0;
@@ -99,7 +99,7 @@ public:
 	}
 
 	bool tooFar(){
-		if(acc_angle >= 33 || acc_angle <= -33){
+		if(acc_angle >= 50 || acc_angle <= -50){
 			return true;
 		} else {
 			return false;
@@ -225,8 +225,8 @@ public:
 
 		if(!overLean) {
 
-			//		Serial.print("pwm value: "); Serial.println(pwm);
-			Serial.print("Filter value: "); Serial.println(temp);
+			Serial.print("pwm value: "); Serial.println(pwm);
+//			Serial.print("Filter value: "); Serial.println(temp);
 
 			this->motor('L', pwm);
 			this->motor('R', pwm);
@@ -239,17 +239,17 @@ public:
 	}
 
 	int pidControl(int setPoint, int current){
-		Potentiometer kPot(3);
+//		Potentiometer kPot(3);
 		Potentiometer kpPot(2);
-		//		Potentiometer kdPot(3);
-		//		Potentiometer kiPot(3);
+//		Potentiometer kdPot(3);
+		Potentiometer kiPot(3);
 
 
-		_k = kPot.getReading(1, 10);
+//		_k = kPot.getReading(1, 10);
 		_kp = kpPot.getReading(1, 10);
-		float gain = 0.65 * _kp;
-		_kd = 0;//kdPot.getReading(-gain, gain); //was at 1.81
-		_ki = 0;//kiPot.getReading(0, 10);
+//		float gain = 0.65 * _kp;
+//		kdPot.getReading(-10, 10); //was at 1.81
+		_ki = kiPot.getReading(0, 10);
 
 		//		Serial.print(_k);
 		//		Serial.print("\t"); Serial.print(_kp);
