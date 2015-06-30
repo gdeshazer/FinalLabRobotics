@@ -218,8 +218,10 @@ public:
 		digitalWrite(enable, HIGH);
 		this->checkFault();
 		bool overLean = accelControl.tooFar();
+
+		int pwm = -this->pidControl(0, accelControl.filter());
+
 		if(!overLean) {
-			int pwm = -this->pidControl(0, accelControl.filter());
 
 			//		Serial.print("pwm value: "); Serial.println(pwm);
 			//		Serial.print("Filter value: "); Serial.println(tmp);
@@ -267,10 +269,10 @@ public:
 
 
 		int out = -constrain(_k*(p + i + d), -255, 255);
-		if(out <= 5 && out >=0){
+		if(out <= 5 && out > 0){
 			out = 5;
 			return out;
-		} else if(out >= -5 && out <= 0){
+		} else if(out >= -5 && out < 0){
 			out = -5;
 			return out;
 		} else {
@@ -362,7 +364,8 @@ private:
 				digitalWrite(leftDir, LOW);
 				analogWrite(leftM, -pwm);
 
-			} else{
+			} else if(pwm == 0){
+				digitalWrite(leftDir, HIGH);
 				analogWrite(leftM, 0);
 			}
 		}  // end motor A
@@ -376,7 +379,8 @@ private:
 				digitalWrite(rightDir, LOW);
 				analogWrite(rightM, -pwm);
 
-			} else {
+			} else if(pwm == 0){
+				digitalWrite(leftDir, HIGH);
 				analogWrite(rightM, 0);
 			}
 		}  // end motor B
@@ -403,15 +407,14 @@ void setup(){
 	pinMode(LED, OUTPUT);
 
 	Wire.begin();
-	//	TWBR = 24;
+	TWBR = 24;
 	imu.initialize();
 
-	//	Serial.println("init");
+	Serial.println("init");
 
 
 	//default offset values
 	imu.setXAccelOffset(1501);
-	imu.setYAccelOffset(1251);
 	imu.setZAccelOffset(1262);
 	imu.setXGyroOffset(-4);
 	imu.setYGyroOffset(4);
