@@ -113,7 +113,7 @@ private:
 
 	float Q_angle  =  0.001; //0.001
 	float Q_gyro   =  0.003;  //0.003
-	float R_angle  =  0.03;  //0.03
+	float R_angle  =  0.01;  //0.03
 
 	float x_angle = 0;
 	float x_bias = 0;
@@ -219,12 +219,14 @@ public:
 		this->checkFault();
 		bool overLean = accelControl.tooFar();
 
-		int pwm = -this->pidControl(0, accelControl.filter());
+		int temp = accelControl.filter();
+
+		int pwm = -this->pidControl(0, temp);
 
 		if(!overLean) {
 
 			//		Serial.print("pwm value: "); Serial.println(pwm);
-			//		Serial.print("Filter value: "); Serial.println(tmp);
+			Serial.print("Filter value: "); Serial.println(temp);
 
 			this->motor('L', pwm);
 			this->motor('R', pwm);
