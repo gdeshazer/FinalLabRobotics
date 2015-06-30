@@ -15,7 +15,7 @@
 #define LED 13
 
 
-const int LOOP_TIME = 100;
+const int LOOP_TIME = 5;
 int lastLoopT = LOOP_TIME;
 int lastLoopTUSE = LOOP_TIME;
 unsigned long loopStartT = 0;
