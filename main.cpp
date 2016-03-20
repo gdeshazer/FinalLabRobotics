@@ -15,7 +15,7 @@
 #define LED 13
 
 
-const int LOOP_TIME = 5;
+const int LOOP_TIME = 7;
 int lastLoopT = LOOP_TIME;
 int lastLoopTUSE = LOOP_TIME;
 unsigned long loopStartT = 0;
@@ -38,7 +38,18 @@ public:
 		imu.getMotion6(&_ax, &_ay, &_az, &_gx, &_gy, &_gz);
 
 		_gx = _gx * 250.0/32768.0;
-		acc_angle = this->arctan2(-_az, -_ay) -38; //-20 for _ay and _az
+		acc_angle = this->arctan2(-_az, -_ay) -36;
+
+//		// ------ DEADBAND -------
+//
+//		if(acc_angle <=5 && acc_angle > 0){
+//			acc_angle = 20;
+//		} else if(acc_angle >=-5 && acc_angle < 0){
+//			acc_angle = -20;
+//		}
+//
+//		// ------------------------
+//
 		Serial.print("acc / gx: \t"); Serial.print(acc_angle);
 		Serial.print("\t"); Serial.println(_gx);
 
@@ -85,21 +96,11 @@ public:
 			this->filter();
 		}
 
-		// -- DEADBAND --
-
-		if(acc_angle <=5 && acc_angle > 0){
-			acc_angle = 11;
-		} else if(acc_angle >=-5 && acc_angle < 0){
-			acc_angle = -11;
-		}
-
-		// --------------
-
 		return kalmanFilter(acc_angle, _gx, LOOP_TIME);
 	}
 
 	bool tooFar(){
-		if(acc_angle >= 50 || acc_angle <= -50){
+		if(acc_angle >= 150 || acc_angle <= -150){
 			return true;
 		} else {
 			return false;
@@ -225,7 +226,7 @@ public:
 
 		if(!overLean) {
 
-			Serial.print("pwm value: "); Serial.println(pwm);
+//			Serial.print("pwm value: "); Serial.println(pwm);
 //			Serial.print("Filter value: "); Serial.println(temp);
 
 			this->motor('L', pwm);
@@ -240,46 +241,59 @@ public:
 
 	int pidControl(int setPoint, int current){
 //		Potentiometer kPot(3);
+		Potentiometer kdPot(3);
 		Potentiometer kpPot(2);
-//		Potentiometer kdPot(3);
-		Potentiometer kiPot(3);
+//		Potentiometer kiPot(2);
 
 
 //		_k = kPot.getReading(1, 10);
 		_kp = kpPot.getReading(1, 10);
-//		float gain = 0.65 * _kp;
-//		kdPot.getReading(-10, 10); //was at 1.81
-		_ki = kiPot.getReading(0, 10);
+//		_kp = 3.41;
+//		float gain = 0.85 * _kp;
+		_kd = kdPot.getReading(-10, 10); //was at 1.81
+//		_ki = kiPot.getReading(0, 10);
 
-		//		Serial.print(_k);
-		//		Serial.print("\t"); Serial.print(_kp);
-		//		Serial.print("\t"); Serial.print(_kd);
-		//		Serial.print("\t"); Serial.println(_ki);
+//		Serial.print(_k);
+//		Serial.print("\t"); Serial.print(_kp);
+//		Serial.print("\t"); Serial.print(_kd);
+//		Serial.print("\t"); Serial.println(_ki);
 
 		const int guard = 25;
 
 		_error = setPoint - current;
 
+		//proportional term
 		int p =_kp * _error;
 
-		int intError = intError + _error;
+		//integral term
+		int intError =+ _error;
 		int i = _ki * constrain(intError, -guard, guard);
 
+		//derivative term
 		int d = _kd * (_error - _lastE);
-
 		_lastE = _error;
 
 
 		int out = -constrain(_k*(p + i + d), -255, 255);
-		if(out <= 5 && out > 0){
-			out = 5;
-			return out;
-		} else if(out >= -5 && out < 0){
-			out = -5;
-			return out;
-		} else {
-			return out;
-		}
+
+		// ######## Motor Dead Band ########
+
+//		int deadBandSize = 7;
+//
+//		if(out <= deadBandSize && out > 0){
+//			out = deadBandSize;
+//			return out;
+//		} else if(out >= -deadBandSize && out < 0){
+//			out =  -deadBandSize;
+//			return out;
+//		} else {
+//			return out;
+//		}
+
+		// #################################
+
+		return out;
+
 	}
 
 
