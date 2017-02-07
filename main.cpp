@@ -3,15 +3,18 @@
 
 #include "Wire.h"
 #include "I2Cdev.h"
-#include "MPU6050_6Axis_MotionApps20.h"
+#include "MPU6050.h"
 #include "Potentiometer.h"
 
 #define leftM 9
 #define leftDir 7
+
 #define rightM 10
 #define rightDir 8
+
 #define fault 12
 #define enable 4
+
 #define LED 13
 
 
