@@ -1,4 +1,4 @@
-## Balanceing Robot
+## Balancing Robot
 
 **This code is deprecated and non-functional.  A functional and updated version is [here](https://github.com/gdeshazer/BalanceRobot).**
 
